@@ -21,20 +21,22 @@ def scrape_movies(genre, min_rating, num_suggestions, save_path):
     soup = BeautifulSoup(response.content, 'html.parser')
     
     # Locate movie elements
-    movie_elements = soup.find('ul', class_='ipc-metadata-list ipc-metadata-list--dividers-between sc-748571c8-0 gFCVNT detailed-list-view ipc-metadata-list--base').find_all('li')
+    movie_elements = soup.find('div', class_='ipc-page-grid__item ipc-page-grid__item--span-2').find_all('li')
     movies = []
     
     for element in movie_elements:
         try:
             # Extract title
-            title = element.find('li', class_= 'ipc-title__text').h3.text
+            title_tag = element.find('h3', class_= 'ipc-title__text')
+            title= title_tag.text.strip() if title_tag else None
             
             # Extract year
-            year = element.find('li', class_='sc-5bc66c50-6 OOdsw dli-title-metadata-item').span.text
+            year_tag = element.find('span', class_='sc-5bc66c50-6 OOdsw dli-title-metadata-item')
+            year= year_tag.text.strip() if year_tag else None
             
             # Extract rating
-            rating_tag = element.find('li', class_='ipc-rating-star--rating').span.text
-            rating = float(rating_tag['data-value']) if rating_tag else None
+            rating_tag = element.find('span', class_='ipc-rating-star--rating')
+            rating= rating_tag.text.strip() if rating_tag else None
             
             # Collect movie details
             movies.append({
