@@ -8,8 +8,11 @@ def scrape_movies(genre, min_rating, num_suggestions, save_path):
     url = f"https://www.imdb.com/search/title/?genres={genre}"
     print("Scraping Movies!!!")
     
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36"
+    }
     # Send an HTTP request to the IMDb server
-    response = requests.get(url)
+    response = requests.get(url, headers=headers)
     if response.status_code != 200:
         print("Failed to retrieve data from IMDb")
         return
@@ -18,19 +21,19 @@ def scrape_movies(genre, min_rating, num_suggestions, save_path):
     soup = BeautifulSoup(response.content, 'html.parser')
     
     # Locate movie elements
-    movie_elements = soup.find_all('div', class_='lister-item mode-advanced')
+    movie_elements = soup.find('ul', class_='ipc-metadata-list ipc-metadata-list--dividers-between sc-748571c8-0 gFCVNT detailed-list-view ipc-metadata-list--base').find_all('li')
     movies = []
     
     for element in movie_elements:
         try:
             # Extract title
-            title = element.h3.a.text.strip()
+            title = element.find('li', class_= 'ipc-title__text').h3.text
             
             # Extract year
-            year = element.h3.find('span', class_='lister-item-year').text.strip()
+            year = element.find('li', class_='sc-5bc66c50-6 OOdsw dli-title-metadata-item').span.text
             
             # Extract rating
-            rating_tag = element.find('div', class_='inline-block ratings-imdb-rating')
+            rating_tag = element.find('li', class_='ipc-rating-star--rating').span.text
             rating = float(rating_tag['data-value']) if rating_tag else None
             
             # Collect movie details
