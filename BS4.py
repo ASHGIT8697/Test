@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import random
 
-def scrape_movies(genre, min_rating, num_suggestions, save_path):
+def scrape_movies(genre, num_suggestions, save_path):
     # Constructing IMDb URL
     url = f"https://www.imdb.com/search/title/?genres={genre}"
     print("Scraping Movies!!!")
@@ -54,14 +54,11 @@ def scrape_movies(genre, min_rating, num_suggestions, save_path):
     print("Data Saved!!")
     
     # Suggest movies
-    suggest_random_movies(df, min_rating, num_suggestions)
+    suggest_random_movies(df, num_suggestions)
 
-def suggest_random_movies(df, min_rating, num_suggestions):
-    # Filter top-rated movies with the minimum rating
-    top_movies = df[df["Rating"].notnull() & (df["Rating"] >= min_rating)]
-    
-    # Random selection
-    suggestions = top_movies.sample(n=min(num_suggestions, len(top_movies)))
+def suggest_random_movies(df, num_suggestions):
+
+    suggestions = df.sample(n=min(num_suggestions, len(df)))
     
     # Display suggestions
     print("\nHere are some suggestions for you:")
@@ -70,8 +67,7 @@ def suggest_random_movies(df, min_rating, num_suggestions):
 
 # Get Input
 genre = input("Enter the genre you're interested in: ").lower()
-min_rating = float(input("Enter the minimum rating for movies from (0-10): "))
 num_suggestions = int(input("Enter the number of movie suggestions: "))
 save_path = input("Enter the destination path to save CSV file (e.g., /path/to/movies.csv): ")
 
-scrape_movies(genre, min_rating, num_suggestions, save_path)
+scrape_movies(genre, num_suggestions, save_path)
