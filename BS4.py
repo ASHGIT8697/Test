@@ -5,7 +5,7 @@ import random
 
 def scrape_movies(genre, num_suggestions, save_path):
     # Constructing IMDb URL
-    url = f"https://www.imdb.com/search/title/?genres={genre}"
+    url = f"https://www.imdb.com/search/?title_type=feature&genres={genre}"
     print("Scraping Movies!!!")
     
     headers = {
