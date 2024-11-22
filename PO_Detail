@@ -1,0 +1,137 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import (
+    NoSuchElementException,
+    TimeoutException,
+    WebDriverException,
+)
+from selenium.webdriver.firefox.options import Options
+import time
+import csv
+
+#Function to save extracted data to a csv file
+def save_data_to_csv(data,output_file):
+    try:
+        with open(output_file, mode='w', newline='', encoding='utf-8') as file:
+            writer=csv.writer(file)
+            writer.writerow(["Extracted Data"])
+            for row in data:
+                write.writeroe[(row)]
+        print(f"Extracted data saved to {output_file}. ")
+    except Exception as e:
+        print(f"Error saving data to csv:{e}")
+
+#Function to read inputs from text file
+def read_input_values(file_path):
+    try:
+        with open(file_path,'r') as file:
+            inputs= file.readlines()
+        return [line.strip() for line in inputs if line.strip()]
+    except FileNotFoundError:
+        print(f"Error : File not Found at {file_path}")
+        return[]
+
+def initialize_driver():
+    try:
+        options=Options()
+        #options.headless=True
+        driver=webdriver.Firefox(options=options)
+        return driver
+    except WebDriverException as e:
+        print(f"Error initializing Driver : {e}")
+        return None
+
+#Function to interact with the webpage
+def process_inputs(driver, url, inputs):
+    results=[]
+
+    try:
+        driver.get(url)
+        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME,'body')))
+        print("Page loaded successfully. ")
+    except TimeoutException:
+        print("Error: Page load timeout.")
+        return[]
+
+    for input_value in inputs:
+        try:
+            print(f"Processing input : {input_value}")
+
+            #locate and interact with the input field
+            input_field = WebDriverWait(driver,10).until(
+                EC.presence_of_element_located((By.ID, 'POIdSearchBox'))
+            )
+            input_field.click()
+            driver.execute_script("arguments[0].value = '' ;", input_field)
+            input_field.send_keys(input_value)
+            print(f"Input value '{input_value}' entered successfully.")
+
+            #Click the search button
+            search_button=WebDriverWait(driver,5).until(
+                EC.element_to_be_clickable((By.ID,'ViewPosSearch_PoIdGo'))
+            )
+            search_button.click()
+            print("Search button clicked.")
+
+            #Interact with additional buttons
+            try:
+                button1=WebDriverWait(driver,5).until(
+                    EC.element_to_be_clickable((By.CLASS_NAME,"col-md-auto"))
+                )
+                button1.click()
+                print(f"Edit item clicked.")
+            except TimeoutException:
+                print(f"Error : Button 1 not found.")
+
+            try:
+                button2=WebDriverWait(driver,5).until(
+                    EC.element_to_be_clickable((By.ID,"bp_confirm_po"))
+                )
+                button2.click()
+                print(f"Confirm PO clicked.")
+            except TimeoutException:
+                print(f"Error : Button 2 not found.")
+
+            #Extract Data
+            try:
+                data_element=WebDriverWait(driver,5).until(
+                    EC.presence_of_element_located((By.CLASS_NAME, 'react-grid-Container'))
+                )
+                extracted_data_value=data_element.text
+                extratced_data.append(extracted_data_value)
+                print(f"Extarcted data:{extracted_data_value}")
+            except TimeoutException:
+                print("Error: Data element not found.")
+        except Exception as e:
+            print(f"An error occured while processing input '{input_value}':{e}")
+
+    return extracted_data
+
+#Main Script
+if __name__=="__main__":
+    #Take the file path as input from the user
+    input_file_path=input("Enter the path to the input file : ").strip()
+
+    #Check if the input file path is valid
+    if not input_file_path:
+        print("Error: No file path provided. Exiting. ")
+    else:
+        url="https://procurementportal-na.corp.amazon.com/bp/home"
+        output_file=input("Enter the path to save the result : ")
+
+        inputs=read_input_values(input_file_path)
+        if not inputs:
+            print("No inputs to process. Exiting.")
+        else:
+            driver = initialize_driver()
+            if driver:
+                try:
+                    extracted_data=process_inputs(driver,url,inputs)
+                    if extracted_data:
+                        save_data_to_csv(extracted_data,output_file)
+                finally:
+                    time.sleep(2)
+                    driver.quit()
+                    print("Webdriver Closed")
