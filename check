@@ -1,1 +1,1 @@
-<td id="ViewPosSearch_PoIdGo" class="goCell"><kat-button label="Go" size="small" variant="tertiary" type="button"></kat-button></td>
+Element <kat-button type="button"> is not clickable at point (586,333) because another element <div class="modal-body"> obscures it
