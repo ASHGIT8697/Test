@@ -1,1 +1,1 @@
-<kat-button label="Go" size="small" variant="tertiary" type="button"></kat-button>
+<td id="ViewPosSearch_PoIdGo" class="goCell"><kat-button label="Go" size="small" variant="tertiary" type="button"></kat-button></td>
