@@ -1,1 +1,2 @@
 
+<tr id="ViewPosSearch_PoIdRow" class="kat-table-row tableRow"><td id="ViewPosSearch_PoIdBox" class="kat-table-cell"><kat-input placeholder="Po Id" id="PoIdSearchBox" class="inputBox touched" type="text" unique-id="katal-id-2" size="large" inputmode="" enterkeyhint=""><span slot="private-light-dom" style="max-width: 0px; max-height: 0px; overflow: hidden;"></span></kat-input></td><td id="ViewPosSearch_PoIdGo" class="goCell"><kat-button disabled="true" label="Go" size="small" variant="tertiary" type="button"></kat-button></td></tr>
