@@ -1,137 +1,72 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import (
-    NoSuchElementException,
-    TimeoutException,
-    WebDriverException,
-)
-from selenium.webdriver.firefox.options import Options
-import time
-import csv
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
 
-#Function to save extracted data to a csv file
-def save_data_to_csv(data,output_file):
+def scrape_data(input_file_path, output_csv_path):
+    # Base URL (Modify as per your requirement)
+    base_url = "https://example.com/path/"
+    
+    # Read inputs from the text file
     try:
-        with open(output_file, mode='w', newline='', encoding='utf-8') as file:
-            writer=csv.writer(file)
-            writer.writerow(["Extracted Data"])
-            for row in data:
-                write.writeroe[(row)]
-        print(f"Extracted data saved to {output_file}. ")
-    except Exception as e:
-        print(f"Error saving data to csv:{e}")
-
-#Function to read inputs from text file
-def read_input_values(file_path):
-    try:
-        with open(file_path,'r') as file:
-            inputs= file.readlines()
-        return [line.strip() for line in inputs if line.strip()]
+        with open(input_file_path, 'r') as file:
+            inputs = [line.strip() for line in file.readlines()]
     except FileNotFoundError:
-        print(f"Error : File not Found at {file_path}")
-        return[]
+        print("Input file not found. Please check the path and try again.")
+        return
+    
+    # Initialize an empty DataFrame to store results
+    all_data = pd.DataFrame()
 
-def initialize_driver():
-    try:
-        options=Options()
-        #options.headless=True
-        driver=webdriver.Firefox(options=options)
-        return driver
-    except WebDriverException as e:
-        print(f"Error initializing Driver : {e}")
-        return None
-
-#Function to interact with the webpage
-def process_inputs(driver, url, inputs):
-    results=[]
-
-    try:
-        driver.get(url)
-        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME,'body')))
-        print("Page loaded successfully. ")
-    except TimeoutException:
-        print("Error: Page load timeout.")
-        return[]
-
-    for input_value in inputs:
+    for inp in inputs:
+        url = f"{base_url}{inp}"
+        print(f"Processing: {url}")
+        
         try:
-            print(f"Processing input : {input_value}")
-
-            #locate and interact with the input field
-            input_field_main = WebDriverWait(driver,10).until(
-                EC.presence_of_element_located((By.ID, 'PoIdSearchBox'))
-            )
-            input_root =driver.execute_script("return arguments[0].shadowRoot ;", input_field_main)
-            input_field=input_root.find_element(By.CSS_SELECTOR,"input")
-            input_field.send_keys(input_value)
-            print(f"Input value '{input_value}' entered successfully.")
-
-            #Click the search button
-            search_button=WebDriverWait(driver,5).until(
-                EC.element_to_be_clickable((By.ID,'ViewPosSearch_PoIdGo'))
-            )
-            search_button.click()
-            print("Search button clicked.")
-
-            #Interact with additional buttons
-            try:
-                button1=WebDriverWait(driver,5).until(
-                    EC.element_to_be_clickable((By.CLASS_NAME,"col-md-auto"))
-                )
-                button1.click()
-                print(f"Edit item clicked.")
-            except TimeoutException:
-                print(f"Error : Button 1 not found.")
-
-            try:
-                button2=WebDriverWait(driver,5).until(
-                    EC.element_to_be_clickable((By.CLASS_NAME,"btn-link"))
-                )
-                button2.click()
-                print(f"Confirm PO clicked.")
-            except TimeoutException:
-                print(f"Error : Button 2 not found.")
-
-            #Extract Data
-            try:
-                data_element=WebDriverWait(driver,5).until(
-                    EC.presence_of_element_located((By.CLASS_NAME, 'react-grid-Grid'))
-                )
-                extracted_data_value=data_element.text
-                extratced_data.append(extracted_data_value)
-                print(f"Extarcted data:{extracted_data_value}")
-            except TimeoutException:
-                print("Error: Data element not found.")
+            # Fetch the page
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()  # Raise HTTPError for bad responses
+            
+            # Parse the HTML
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Locate the table (Modify the selector as per the actual table structure)
+            table = soup.find('table')
+            if not table:
+                print(f"No table found on the page: {url}")
+                continue
+            
+            # Extract table headers
+            headers = [th.text.strip() for th in table.find_all('th')]
+            
+            # Extract table rows
+            rows = []
+            for tr in table.find_all('tr'):
+                cells = [td.text.strip() for td in tr.find_all('td')]
+                if cells:  # Avoid empty rows
+                    rows.append(cells)
+            
+            # Convert to a DataFrame and append to all_data
+            if rows:
+                df = pd.DataFrame(rows, columns=headers if headers else None)
+                df['Source URL'] = url  # Add URL as a reference column
+                all_data = pd.concat([all_data, df], ignore_index=True)
+            else:
+                print(f"No data found in the table on page: {url}")
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Failed to fetch the page {url}: {e}")
         except Exception as e:
-            print(f"An error occured while processing input '{input_value}':{e}")
-
-    return extracted_data
-
-#Main Script
-if __name__=="__main__":
-    #Take the file path as input from the user
-    input_file_path=input("Enter the path to the input file : ").strip()
-
-    #Check if the input file path is valid
-    if not input_file_path:
-        print("Error: No file path provided. Exiting. ")
+            print(f"An error occurred while processing {url}: {e}")
+    
+    # Save the collected data to a CSV file
+    if not all_data.empty:
+        all_data.to_csv(output_csv_path, index=False)
+        print(f"Data successfully saved to {output_csv_path}")
     else:
-        url="https://procurementportal-na.corp.amazon.com/bp/home"
-        output_file=input("Enter the path to save the result : ")
+        print("No data collected. CSV file not created.")
 
-        inputs=read_input_values(input_file_path)
-        if not inputs:
-            print("No inputs to process. Exiting.")
-        else:
-            driver = initialize_driver()
-            if driver:
-                try:
-                    extracted_data=process_inputs(driver,url,inputs)
-                    if extracted_data:
-                        save_data_to_csv(extracted_data,output_file)
-                finally:
-                    time.sleep(2)
-                    driver.quit()
-                    print("Webdriver Closed")
+if __name__ == "__main__":
+    # Prompt for file paths
+    input_file = input("Enter the path to the input text file: ").strip()
+    output_file = input("Enter the path to save the output CSV file: ").strip()
+    scrape_data(input_file, output_file)
