@@ -1,72 +1,69 @@
-import requests
-from bs4 import BeautifulSoup
-import pandas as pd
+import os
+import csv
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from webdriver_manager.chrome import ChromeDriverManager
 
-def scrape_data(input_file_path, output_csv_path):
-    # Base URL (Modify as per your requirement)
-    base_url = "https://example.com/path/"
-    
-    # Read inputs from the text file
-    try:
-        with open(input_file_path, 'r') as file:
-            inputs = [line.strip() for line in file.readlines()]
-    except FileNotFoundError:
-        print("Input file not found. Please check the path and try again.")
-        return
-    
-    # Initialize an empty DataFrame to store results
-    all_data = pd.DataFrame()
+def scrape_data(input_file_path, output_file_path):
+    # Initialize WebDriver
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")  # Run in headless mode for better performance
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    wait = WebDriverWait(driver, 10)
 
-    for inp in inputs:
-        url = f"{base_url}{inp}"
-        print(f"Processing: {url}")
-        
-        try:
-            # Fetch the page
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()  # Raise HTTPError for bad responses
-            
-            # Parse the HTML
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Locate the table (Modify the selector as per the actual table structure)
-            table = soup.find('table')
-            if not table:
-                print(f"No table found on the page: {url}")
+    # Read inputs from text file
+    with open(input_file_path, 'r') as file:
+        inputs = file.read().splitlines()
+
+    # Prepare to write results to CSV
+    with open(output_file_path, mode='w', newline='', encoding='utf-8') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["Input", "Scraped Data"])  # Change headers based on your table structure
+
+        for input_value in inputs:
+            try:
+                # Construct URL
+                base_url = "https://example.com/path/"  # Replace with actual base URL
+                full_url = f"{base_url}{input_value}"
+
+                # Open URL
+                driver.get(full_url)
+
+                # Wait for the table to load
+                try:
+                    table = wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
+                    rows = table.find_elements(By.TAG_NAME, "tr")
+                    
+                    # Extract data from rows and cells
+                    for row in rows:
+                        cells = row.find_elements(By.TAG_NAME, "td")
+                        row_data = [cell.text.strip() for cell in cells]
+                        csv_writer.writerow([input_value, *row_data])  # Save input and row data
+
+                except TimeoutException:
+                    print(f"Table not found or failed to load for URL: {full_url}")
+                    continue
+
+            except WebDriverException as e:
+                print(f"Error accessing {full_url}: {e}")
                 continue
-            
-            # Extract table headers
-            headers = [th.text.strip() for th in table.find_all('th')]
-            
-            # Extract table rows
-            rows = []
-            for tr in table.find_all('tr'):
-                cells = [td.text.strip() for td in tr.find_all('td')]
-                if cells:  # Avoid empty rows
-                    rows.append(cells)
-            
-            # Convert to a DataFrame and append to all_data
-            if rows:
-                df = pd.DataFrame(rows, columns=headers if headers else None)
-                df['Source URL'] = url  # Add URL as a reference column
-                all_data = pd.concat([all_data, df], ignore_index=True)
-            else:
-                print(f"No data found in the table on page: {url}")
-                
-        except requests.exceptions.RequestException as e:
-            print(f"Failed to fetch the page {url}: {e}")
-        except Exception as e:
-            print(f"An error occurred while processing {url}: {e}")
-    
-    # Save the collected data to a CSV file
-    if not all_data.empty:
-        all_data.to_csv(output_csv_path, index=False)
-        print(f"Data successfully saved to {output_csv_path}")
-    else:
-        print("No data collected. CSV file not created.")
 
+    # Close the WebDriver
+    driver.quit()
+
+# Main execution
 if __name__ == "__main__":
-    # Prompt for file paths
-    input_file = input("Enter the path to the input text file: ").strip()
-    output_file = input("Enter the path to save the output CSV file: ").strip()
-    scrape_data(input_file, output_file)
+    input_file_path = input("Enter the path of the input text file: ").strip()
+    output_file_path = input("Enter the path to save the output CSV file: ").strip()
+
+    # Ensure the input file exists
+    if not os.path.exists(input_file_path):
+        print("Input file does not exist. Please provide a valid path.")
+    else:
+        scrape_data(input_file_path, output_file_path)
+        print(f"Scraping complete. Data saved to {output_file_path}")
