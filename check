@@ -1,11 +1,5 @@
-rows_even = driver.find_elements(By.CLASS_NAME, "react-grid-Row--even")
-rows_odd = driver.find_elements(By.CLASS_NAME, "react-grid-Row--odd")
+wait = WebDriverWait(driver, 10)  # Wait up to 10 seconds for elements to appear
 
-# Combine all rows
-all_rows = rows_even + rows_odd
-
-# Extract value attributes from react-grid-Cell within each row
-data = []
-for row in all_rows:
-    cells = row.find_elements(By.CLASS_NAME, "react-grid-Cell")
-    row_data = [cell.get_attribute("value") for cell in cells]
+# Locate all rows with the desired classes
+rows_even = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "react-grid-Row--even")))
+rows_odd = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "react-grid-Row--odd")))
