@@ -1,5 +1,74 @@
-wait = WebDriverWait(driver, 10)  # Wait up to 10 seconds for elements to appear
+import os
+import csv
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from webdriver_manager.chrome import ChromeDriverManager
 
-# Locate all rows with the desired classes
-rows_even = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "react-grid-Row--even")))
-rows_odd = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "react-grid-Row--odd")))
+
+def scrape_data(input_file_path, output_file_path):
+    # Initialize WebDriver
+    options = webdriver.ChromeOptions()
+    #options.add_argument("--headless")  # Run in headless mode for better performance
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    wait = WebDriverWait(driver, 10)
+
+    # Read inputs from text file
+    with open(input_file_path, 'r') as file:
+        inputs = file.read().splitlines()
+
+    # Prepare to write results to CSV
+    with open(output_file_path, mode='w', newline='', encoding='utf-8') as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerow(["Input", "ASIN","Title","External ID","Ack Code","Exp. Del Date","Qty Sub(Amz Unit)","Qty Exp(Amz Unit)","Qty Sub(Ven Unit)","Qty Exp(Ven Unit)","Price(Amz Unit)","Price(Ven Unit)","Discount","Cost(Amz Unit)","Cost(Ven Unit)"])  # Change headers based on your table structure
+
+        for input_value in inputs:
+            try:
+                # Construct URL
+                base_url = "https://procurementportal-na.corp.amazon.com/bp/action/confirmPo?poId="  # Replace with actual base URL
+                full_url = f"{base_url}{input_value}"
+
+                # Open URL
+                driver.get(full_url)
+
+                # Wait for the table to load
+                wait = WebDriverWait(driver, 10)  # Wait up to 10 seconds for elements to appear
+                try:
+                    rows_even = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "react-grid-Row--even")))
+                    rows_odd = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "react-grid-Row--odd")))
+
+                    # Combine all rows
+                    all_rows = rows_even + rows_odd
+
+                    for row in all_rows:
+                        cells = row.find_elements(By.CLASS_NAME, "react-grid-Cell")
+                        row_data = [cell.get_attribute("value") for cell in cells]
+                        csv_writer.writerow([input_value, row_data])
+
+                except TimeoutException:
+                    print(f"Table not found or failed to load for URL: {full_url}")
+                    continue
+
+            except WebDriverException as e:
+                print(f"Error accessing {full_url}: {e}")
+                continue
+
+    # Close the WebDriver
+    driver.quit()
+
+
+# Main execution
+if __name__ == "__main__":
+    input_file_path = input("Enter the path of the input text file: ").strip()
+    output_file_path = input("Enter the path to save the output CSV file: ").strip()
+
+    # Ensure the input file exists
+    if not os.path.exists(input_file_path):
+        print("Input file does not exist. Please provide a valid path.")
+    else:
+        scrape_data(input_file_path, output_file_path)
+        print(f"Scraping complete. Data saved to {output_file_path}")
