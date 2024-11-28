@@ -1,58 +1,108 @@
 import os
 import csv
-import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from webdriver_manager.firefox import GeckoDriverManager
+import time
+import logging
+import browser_cookie3
+from time import sleep
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from webdriver_manager.chrome import ChromeDriverManager
 
 
+# Function to set up and open a new browser window
 def scrape_data(input_file_path, output_file_path):
-    # Initialize WebDriver
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless")  # Run in headless mode for better performance
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    wait = WebDriverWait(driver, 20)
+    # Set Chrome options
+    firefox_options = FirefoxOptions()
+    firefox_options.add_argument("--start-maximized")
+    service = FirefoxService(executable_path=GeckoDriverManager().install())
+    driver = webdriver.Firefox(service=service, options=firefox_options)
+    return driver
 
-    # Read inputs from text file
-    with open(input_file_path, 'r') as file:
-        inputs = file.read().splitlines()
+def cookie_sel():
+    cookiejar = browser_cookie3.firefox(domain_name='midway-auth.amazon.com')
+    cookie_sel = []
+    for ir in cookiejar:
+        cookie_dict = {}
+        if ir.name == 'session' or ir.name == 'amazon_enterprise_access':
+            cookie_dict = {'name': ir.name, 'value': ir.value, 'path': ir.path, 'expiry': ir.expires}
+            cookie_sel.append(cookie_dict)
+    return cookie_sel
 
-        for input_value in inputs:
-            try:
-                # Construct URL
-                base_url = "https://src-na.corp.amazon.com/procurability/?asin="  # Replace with actual base URL
-                last_part="&iog=1"
-                full_url = f"{base_url}{input_value}{last_part}"
+def Firefox_AEA():
+    user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+    options = webdriver.FirefoxOptions()
+    options.set_preference("browser.download.folderList", 2)
+    options.set_preference("browser.helperApps.alwaysAsk.force", False)
+    # options.set_preference("browser.download.dir", OUTPUT_FOLDER)
+    options.set_preference("browser.helperApps.neverAsk.openFile",
+                           "'text/plain,text/csv,application/csv,application/octet-stream")
+    options.set_preference("browser.helperApps.neverAsk.saveToDisk",
+                           "'text/plain,text/csv,application/csv,application/octet-stream")
+    options.set_preference("general.useragent.override", user_agent)
+    from selenium.webdriver.firefox.service import Service
+    drive = GeckoDriverManager().install()
+    fire_service = Service(drive)
+    driver = webdriver.Firefox(service=fire_service, options=options)
+    driver.get('https://midway-auth.amazon.com')
+    driver.maximize_window()
+    cookie_sel1 = cookie_sel()
+    for cook in cookie_sel1:
+        driver.add_cookie(cook)
+    sleep(2)
+    driver.get('https://midway-auth.amazon.com')
+    while True:
+        try:
+            driver.find_element(By.ID, 'page')
+            break
+        except Exception as e:
+            pass
+    return driver
 
-                # Open URL
-                driver.get(full_url)
+driver = Firefox_AEA()
 
-                # Wait for the table to load
-                wait = WebDriverWait(driver, 10)  # Wait up to 10 seconds for elements to appear
-                
-                elements=driver.find_elements(By.CLASS_NAME,"text-success")
-                
-                data=[]
-                for element in elements:
-                    data.append(element.text)
+results=[]
 
-                #save data to csv
-                df=pd.DataFrame(data,columns=["ASIN","Procurability"])
-                df.to_csv()
+# Read inputs from text file
+with open(input_file_path, 'r') as file:
+    asins = file.read().splitlines()
 
+    for asin in asins:
+        try:
+            # Construct URL
+            base_url = "https://src-na.corp.amazon.com/procurability/?asin="  # Replace with actual base URL
+            full_url = f"{base_url}{asin}&iog=1"
 
-            except TimeoutException:
-                print(f"ASIN not found or failed to load for URL: {full_url}")
-                continue
+            # Open URL
+            driver.get(full_url)
 
-    # Close the WebDriver
-    driver.quit()
+            # Wait for the table to load
+            wait.until(EC.presence_of_element_located((By.CLASS_NAME,"text-success")))
 
+            #Find the procurability Status
+            procurability_element=driver.find_elements(By.CLASS_NAME,"text-success")
+            procurability_status=procurability_element.text
+
+            #save the asin and proc. status
+            results.append({"ASIN":asin,"Procurability":procurability_status})
+
+        except (TimeoutException, NoSuchElementException)as e:
+            print(f"failed to load or fetch data for ASIN: {asin}")
+            results.append({"ASIN": asin, "Procurability": procurability_status})
+
+#save the file to a csv file
+df=pd.DataFrame(results)
+df.to_csv(output_file_path, index=False)
+
+# Close the WebDriver
+driver.quit()
 
 # Main execution
 if __name__ == "__main__":
