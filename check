@@ -1,1 +1,67 @@
-<thead><tr class="text-centered-superclass"><th class="col-sm-2">FNSKU</th><th class="col-sm-2">Procurability</th><th class="col-sm-2">Last Changed (UTC) <span class="glyphicon glyphicon-question-sign"></span></th><th class="col-sm-2">Last Calculated (UTC) <span class="glyphicon glyphicon-question-sign"></span></th><th class="col-sm-2">Calculation Algorithm</th><th class="col-sm-2">Action</th></tr></thead><tbody><tr><td><div class="dropdown"><a class="dropdown-toggle data-toggle-pointer" id="summary-dropdown-link-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">B0054LDFK2</a><ul class="dropdown-menu summary-dropdown-link-container" aria-labelledby="summary-dropdown-link-toggle"><li><a href="https://csi.amazon.com/view?view=simple_product_data_view&amp;item_id=B0054LDFK2&amp;marketplace_id=1" class="summary-dropdown-link link-right">Catalog</a></li><li><a href="https://www.amazon.com/exec/obidos/ASIN/B0054LDFK2" class="summary-dropdown-link link-left">Detail Page</a></li></ul></div></td><td class="text-success">Procurable</td><td>2022-03-27 15:33</td><td>2024-11-27 18:34</td><td>IPC Responsibility</td><td><button type="button" class="btn recalculate-btn btn-success">Recalculate</button></td></tr></tbody>
+import os
+import csv
+import time
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from webdriver_manager.chrome import ChromeDriverManager
+
+
+def scrape_data(input_file_path, output_file_path):
+    # Initialize WebDriver
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")  # Run in headless mode for better performance
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+    wait = WebDriverWait(driver, 20)
+
+    # Read inputs from text file
+    with open(input_file_path, 'r') as file:
+        inputs = file.read().splitlines()
+
+        for input_value in inputs:
+            try:
+                # Construct URL
+                base_url = "https://src-na.corp.amazon.com/procurability/?asin="  # Replace with actual base URL
+                last_part="&iog=1"
+                full_url = f"{base_url}{input_value}{last_part}"
+
+                # Open URL
+                driver.get(full_url)
+
+                # Wait for the table to load
+                wait = WebDriverWait(driver, 10)  # Wait up to 10 seconds for elements to appear
+                
+                elements=driver.find_elements(By.CLASS_NAME,"text-success")
+                
+                data=[]
+                for element in elements:
+                    data.append(element.text)
+
+                #save data to csv
+                df=pd.DataFrame(data,columns=["ASIN","Procurability"])
+                df.to_csv()
+
+
+            except TimeoutException:
+                print(f"ASIN not found or failed to load for URL: {full_url}")
+                continue
+
+    # Close the WebDriver
+    driver.quit()
+
+
+# Main execution
+if __name__ == "__main__":
+    input_file_path = input("Enter the path of the input text file: ").strip()
+    output_file_path = input("Enter the path to save the output CSV file: ").strip()
+
+    # Ensure the input file exists
+    if not os.path.exists(input_file_path):
+        print("Input file does not exist. Please provide a valid path.")
+    else:
+        scrape_data(input_file_path, output_file_path)
+        print(f"Scraping complete. Data saved to {output_file_path}")
