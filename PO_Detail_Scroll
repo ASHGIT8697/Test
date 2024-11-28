@@ -1,5 +1,6 @@
 import os
 import csv
+import time
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -13,7 +14,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 def scrape_data(input_file_path, output_file_path):
     # Initialize WebDriver
     options = webdriver.ChromeOptions()
-    #options.add_argument("--headless")  # Run in headless mode for better performance
+    options.add_argument("--headless")  # Run in headless mode for better performance
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
     wait = WebDriverWait(driver, 20)
 
@@ -38,7 +39,12 @@ def scrape_data(input_file_path, output_file_path):
                 # Wait for the table to load
                 wait = WebDriverWait(driver, 20)  # Wait up to 10 seconds for elements to appear
                 rows_collected=set()
-                while True:
+                max_scroll_attempts=12
+                scroll_attempts=0
+
+                while scroll_attempts<max_scroll_attempts:
+                    scroll_attempts+=1
+
                     rows_even = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "react-grid-Row--even")))
                     rows_odd = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "react-grid-Row--odd")))
 
@@ -58,18 +64,17 @@ def scrape_data(input_file_path, output_file_path):
                         csv_writer.writerow([input_value]+row_data)
 
                     #scroll down
-                    driver.find_element(By.CLASS_NAME,"react-grid-Canvas").send_keys(Keys.PAGE_DOWN)
+                    scrollable_container=driver.find_element(By.CLASS_NAME,"react-grid-Canvas").send_keys(Keys.PAGE_DOWN)
+                    time.sleep(5)
 
                     #wait to see if more loads
-                    WebDriverWait(driver,8).until(
-                        lambda d:len(driver.find_elements(By.CLASS_NAME,"react-grid-Row"))
-                    )
-                    if len(new_rows)==0:
+                    rows_after_scroll=driver.find_elements(By.CLASS_NAME,"react-grid-Row")
+                    if len(rows_after_scroll)==len(rows_collected):
                         break
 
             except TimeoutException:
-                    print(f"Table not found or failed to load for URL: {full_url}")
-                    continue
+                print(f"Table not found or failed to load for URL: {full_url}")
+                continue
 
             except WebDriverException as e:
                 print(f"Error accessing {full_url}: {e}")
