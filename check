@@ -1,1 +1,127 @@
-<div class="panel-heading"><h5 class="panel-title">Procurability Summary</h5></div><table class="table table-bordered text-center table-condensed"><thead><tr class="text-centered-superclass"><th class="col-sm-2">FNSKU</th><th class="col-sm-2">Procurability</th><th class="col-sm-2">Last Changed (UTC) <span class="glyphicon glyphicon-question-sign"></span></th><th class="col-sm-2">Last Calculated (UTC) <span class="glyphicon glyphicon-question-sign"></span></th><th class="col-sm-2">Calculation Algorithm</th><th class="col-sm-2">Action</th></tr></thead><tbody><tr><td><div class="dropdown"><a class="dropdown-toggle data-toggle-pointer" id="summary-dropdown-link-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true">B01M0YC6DO</a><ul class="dropdown-menu summary-dropdown-link-container" aria-labelledby="summary-dropdown-link-toggle"><li><a href="https://csi.amazon.com/view?view=simple_product_data_view&amp;item_id=B01M0YC6DO&amp;marketplace_id=1" class="summary-dropdown-link link-right">Catalog</a></li><li><a href="https://www.amazon.com/exec/obidos/ASIN/B01M0YC6DO" class="summary-dropdown-link link-left">Detail Page</a></li></ul></div></td><td class="text-success">Procurable</td><td>2024-10-27 04:24</td><td>2024-11-28 18:42</td><td>IPC Responsibility</td><td><button type="button" class="btn recalculate-btn btn-success">Recalculate</button></td></tr></tbody></table>
+import os
+import pandas as pd
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.firefox.service import Service as FirefoxService
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from webdriver_manager.firefox import GeckoDriverManager
+import time
+import logging
+import browser_cookie3
+from time import sleep
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+from webdriver_manager.chrome import ChromeDriverManager
+
+
+# Function to set up and open a new browser window
+def setup_browser():
+    # Set Chrome options
+    firefox_options = FirefoxOptions()
+    firefox_options.add_argument("--start-maximized")
+    #firefox_options.add_argument("--headless")
+    service = FirefoxService(executable_path=GeckoDriverManager().install())
+    driver = webdriver.Firefox(service=service, options=firefox_options)
+    return driver
+
+def cookie_sel():
+    cookiejar = browser_cookie3.firefox(domain_name='midway-auth.amazon.com')
+    cookie_sel = []
+    for ir in cookiejar:
+        cookie_dict = {}
+        if ir.name == 'session' or ir.name == 'amazon_enterprise_access':
+            cookie_dict ={'name': ir.name, 'value': ir.value, 'path': ir.path, 'expiry': ir.expires}
+            cookie_sel.append(cookie_dict)
+    return cookie_sel
+
+def Firefox_AEA():
+    user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+    options = webdriver.FirefoxOptions()
+    options.set_preference("browser.download.folderList", 2)
+    options.set_preference("browser.helperApps.alwaysAsk.force", False)
+    # options.set_preference("browser.download.dir", OUTPUT_FOLDER)
+    options.set_preference("browser.helperApps.neverAsk.openFile",
+                           "'text/plain,text/csv,application/csv,application/octet-stream")
+    options.set_preference("browser.helperApps.neverAsk.saveToDisk",
+                           "'text/plain,text/csv,application/csv,application/octet-stream")
+    options.set_preference("general.useragent.override", user_agent)
+    from selenium.webdriver.firefox.service import Service
+    drive = GeckoDriverManager().install()
+    fire_service = Service(drive)
+    driver = webdriver.Firefox(service=fire_service, options=options)
+    driver.get('https://midway-auth.amazon.com')
+    driver.maximize_window()
+    cookie_sel1 = cookie_sel()
+    for cook in cookie_sel1:
+        driver.add_cookie(cook)
+    sleep(2)
+    driver.get('https://midway-auth.amazon.com')
+    while True:
+        try:
+            driver.find_element(By.ID, 'page')
+            break
+        except Exception as e:
+            pass
+    return driver
+driver = Firefox_AEA()
+wait=WebDriverWait(driver,10)
+
+# Read ASINs from file
+file_path = input("Enter the file path containing ASINs : ").strip()
+try:
+    with open(file_path, 'r') as f:
+        asin_list = [line.strip() for line in f if line.strip()]
+except FileNotFoundError:
+    print(f"Error: File not found at '{file_path}'. Exiting.")
+    driver.quit()
+    exit(1)
+
+# List to store the results
+results = []
+output_file_path = input("Enter the path to save the report : ")  # Output file to store cumulative results
+
+# Function to process an ASIN and fetch data
+def process_asin(asin):
+    try:
+        # Construct URL
+        base_url = "https://src-na.corp.amazon.com/procurability/?asin="  # Replace with actual base URL
+        full_url = f"{base_url}{asin}&iog=1"
+
+        # Open URL
+        driver.get(full_url)
+
+        elements=driver.find_elements(By.CLASS_NAME,"text-success")
+
+        for element in elements:
+            text_content=element.text.strip()
+            if text_content=="Procurable":
+                return {"Procurable"}
+            else:
+                return{"Unprocurable"}
+
+    except (TimeoutException, NoSuchElementException):
+        print(f"Failed to load or fetch data for ASIN: {asin}")
+        return {"ASIN": asin, "Procurability": "Error"}
+
+# Process ASINs one at a time
+for asin in asin_list:
+    result = process_asin(asin)
+    results.append(result)
+
+    # Save results to the output Excel file
+    df = pd.DataFrame(results)
+    try:
+        df.to_csv(output_file_path, index=False)
+        print(f"Results saved to {output_file_path}")
+    except Exception as e:
+        print(f"Error saving results: {e}")
+
+    sleep(5)
+
+# Close the browser
+driver.quit()
+
+input("Press Enter to Exit...")
